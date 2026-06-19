@@ -35,6 +35,12 @@ export interface BiomarkerRange {
   readonly high?: number;
 }
 
+/** Rangos específicos por sexo (sobrescriben los rangos por defecto). */
+export interface SexRanges {
+  readonly conventional?: BiomarkerRange;
+  readonly functional?: BiomarkerRange;
+}
+
 export interface Biomarker {
   /** Código del analito (LOINC por defecto, o local de BioWellness). */
   readonly code: string;
@@ -46,10 +52,14 @@ export interface Biomarker {
   readonly unit: string;
   /** Descripción breve para el paciente. */
   readonly description: string;
-  /** Rango de referencia convencional del laboratorio. */
+  /** Rango de referencia convencional del laboratorio (por defecto / unisex). */
   readonly conventional?: BiomarkerRange;
-  /** Rango funcional / óptimo (Tabla institucional BioWellness). */
+  /** Rango funcional / óptimo (Tabla institucional BioWellness, por defecto / unisex). */
   readonly functional?: BiomarkerRange;
+  /** Rangos para pacientes masculinos (sobrescriben los de arriba). */
+  readonly male?: SexRanges;
+  /** Rangos para pacientes femeninos (sobrescriben los de arriba). */
+  readonly female?: SexRanges;
 }
 
 export interface BiomarkerPanelType {
@@ -121,15 +131,17 @@ export const biomarkerPanels: Record<string, BiomarkerPanelType> = {
         code: '2986-8',
         title: 'Testosterona total',
         unit: 'ng/mL',
-        description: 'Principal hormona androgénica (informada por el laboratorio en ng/mL).',
-        conventional: { low: 1.93, high: 7.4 },
+        description:
+          'Principal hormona androgénica (en ng/mL). Se muestra el rango masculino; el femenino es mucho menor (a definir con el laboratorio).',
+        male: { conventional: { low: 1.93, high: 7.4 } },
       },
       {
         code: '2991-8',
         title: 'Testosterona libre',
         unit: 'pg/mL',
-        description: 'Fracción de testosterona biológicamente activa.',
-        conventional: { low: 38, high: 190 },
+        description:
+          'Fracción de testosterona biológicamente activa. Se muestra el rango masculino (el femenino, a definir).',
+        male: { conventional: { low: 38, high: 190 } },
       },
       {
         code: '2191-5',
@@ -151,9 +163,9 @@ export const biomarkerPanels: Record<string, BiomarkerPanelType> = {
         code: '2243-4',
         title: 'Estradiol (E2)',
         unit: 'pg/mL',
-        description: 'Principal estrógeno; los rangos varían por sexo y fase del ciclo.',
-        conventional: { low: 25, high: 43.2 },
-        functional: { low: 20, high: 35 },
+        description:
+          'Principal estrógeno. En mujeres varía según la fase del ciclo (rango a definir); se muestra el rango de referencia masculino.',
+        male: { conventional: { low: 25, high: 43.2 }, functional: { low: 20, high: 35 } },
       },
       {
         code: '50398-7',
@@ -194,6 +206,8 @@ export const biomarkerPanels: Record<string, BiomarkerPanelType> = {
         description: 'Reserva de hierro; también es un reactante de fase aguda.',
         conventional: { low: 30, high: 400 },
         functional: { low: 50, high: 100 },
+        male: { conventional: { low: 12, high: 300 } },
+        female: { conventional: { low: 12, high: 150 } },
       },
       {
         code: '3255-7',
@@ -209,6 +223,8 @@ export const biomarkerPanels: Record<string, BiomarkerPanelType> = {
         description: 'Velocidad de sedimentación globular; marcador inespecífico de inflamación.',
         conventional: { high: 20 },
         functional: { high: 10 },
+        male: { conventional: { high: 20 } },
+        female: { conventional: { high: 30 } },
       },
       {
         code: '26881-3',
@@ -282,6 +298,8 @@ export const biomarkerPanels: Record<string, BiomarkerPanelType> = {
         description: 'Colesterol "bueno"; valores altos son protectores.',
         conventional: { low: 40 },
         functional: { low: 60 },
+        male: { conventional: { low: 40 } },
+        female: { conventional: { low: 50 } },
       },
       {
         code: '13457-7',
@@ -428,3 +446,27 @@ export const biomarkerPanels: Record<string, BiomarkerPanelType> = {
     ],
   },
 };
+
+/** Sexo del paciente para resolver rangos. Solo 'male' / 'female' ajustan rangos. */
+export type PatientSex = 'male' | 'female' | undefined;
+
+/** ¿El biomarcador define rangos específicos por sexo? */
+export function isSexSpecific(bm: Biomarker): boolean {
+  return Boolean(bm.male || bm.female);
+}
+
+/**
+ * Resuelve los rangos aplicables a un paciente. Si hay rango específico para su
+ * sexo, lo usa; si no, cae al rango por defecto (unisex). Para sexo desconocido
+ * usa siempre el por defecto.
+ */
+export function resolveBiomarkerRanges(
+  bm: Biomarker,
+  sex: PatientSex
+): { conventional?: BiomarkerRange; functional?: BiomarkerRange } {
+  const override = sex ? bm[sex] : undefined;
+  return {
+    conventional: override?.conventional ?? bm.conventional,
+    functional: override?.functional ?? bm.functional,
+  };
+}
