@@ -19,7 +19,8 @@ export default defineConfig({
     host: 'bio.medplum.com.ar',
   },
   server: {
-    port: 3000,
+    port: 3006,
+    host: 'localhost',
   },
   test: {
     environment: 'jsdom',
